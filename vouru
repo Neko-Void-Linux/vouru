@@ -163,7 +163,7 @@ Commands:
   add <git-url>           Clone a git repository and copy template folders into srcpkgs
   search | -s <term>      Search for packages in srcpkgs matching <term>
   source                  List repositories added with 'vouru add' and count templates
-  install | -i [--restricted|-R] <pkg>  Search, compile, and install a package
+    install | -i [--restricted|-R] [--dont-answer-me] <pkg>  Search, compile, and install a package
   remove | -r <pkg>       Remove an installed package (xbps-remove)
   clean | -c              Remove the void-packages repository and purge cached packages
   set-repo [path]         Set the location of the void-packages repository (if no path, prompt)
@@ -176,6 +176,7 @@ Examples:
   vouru search firefox
   vouru install --restricted discord
   vouru -i -R spotify
+  vouru install --dont-answer-me firefox
   vouru remove cmuspp-void
   vouru update
   vouru clean
@@ -300,10 +301,15 @@ search_packages() {
 install_package() {
     local query="$1"
     local is_restricted="${2:-false}"
+    local dont_answer_me="${3:-false}"
     ensure_repo
     cd "$VURU_DIR" || exit 1
 
-    mapfile -t MATCHES < <(find srcpkgs -maxdepth 1 -type d -name "*${query}*" -printf "%f\n" | sort -u)
+    if [ "$dont_answer_me" = "true" ]; then
+        mapfile -t MATCHES < <(find srcpkgs -maxdepth 1 -type d -name "$query" -printf "%f\n" | sort -u)
+    else
+        mapfile -t MATCHES < <(find srcpkgs -maxdepth 1 -type d -name "*${query}*" -printf "%f\n" | sort -u)
+    fi
 
     if [ ${#MATCHES[@]} -eq 0 ]; then
         echo -e "${V_ERR}Error: No package found for '$query'.${V_RST}"
@@ -314,6 +320,9 @@ install_package() {
     if [ ${#MATCHES[@]} -eq 1 ]; then
         PKG_NAME="${MATCHES[0]}"
         echo -e "${V_MAIN}Package found:${V_RST} ${V_PKG}$PKG_NAME${V_RST}"
+    elif [ "$dont_answer_me" = "true" ]; then
+        echo -e "${V_ERR}Error: Package '$query' not found (exact match required with --dont-answer-me).${V_RST}"
+        exit 1
     else
         echo -e "${V_MAIN}Multiple matches found:${V_RST}"
         local i=1
@@ -334,10 +343,14 @@ install_package() {
     # Check if already installed
     if is_pkg_installed "$PKG_NAME"; then
         echo -e "${V_MAIN}Package ${V_PKG}$PKG_NAME${V_MAIN} is already installed.${V_RST}"
-        read -p "Do you want to reinstall/rebuild it? (y/N): " reinstall_choice < /dev/tty
-        if [[ ! "$reinstall_choice" =~ ^[Yy]$ ]]; then
-            echo -e "${V_ERR}Installation skipped.${V_RST}"
-            exit 0
+        if [ "$dont_answer_me" = "true" ]; then
+            echo -e "${V_MAIN}Reinstalling (forced by --dont-answer-me)...${V_RST}"
+        else
+            read -p "Do you want to reinstall/rebuild it? (y/N): " reinstall_choice < /dev/tty
+            if [[ ! "$reinstall_choice" =~ ^[Yy]$ ]]; then
+                echo -e "${V_ERR}Installation skipped.${V_RST}"
+                exit 0
+            fi
         fi
     fi
 
@@ -351,7 +364,14 @@ install_package() {
         has_official=true
     fi
 
-    if $has_official && $has_template; then
+    if [ "$dont_answer_me" = "true" ]; then
+        if ! $has_template; then
+            echo -e "${V_ERR}Error: No source template found for $PKG_NAME in srcpkgs.${V_RST}" >&2
+            echo -e "${V_ERR}Use 'vouru add <git-url>' to add a template.${V_RST}" >&2
+            exit 1
+        fi
+        echo -e "${V_MAIN}Compiling from source (--dont-answer-me, skipping all prompts)...${V_RST}"
+    elif $has_official && $has_template; then
         echo ""
         echo -e "${V_MAIN}Package ${V_PKG}$PKG_NAME${V_MAIN} is available from both sources:${V_RST}"
         echo -e "  ${V_MAIN}1.${V_RST} ${V_PKG}[repo]${V_RST}  Install pre-built binary via xbps-install (fast)"
@@ -391,8 +411,12 @@ install_package() {
         exit 1
     fi
 
-    # Review the template before compiling
-    review_template "srcpkgs/$PKG_NAME/template" "$PKG_NAME"
+    # Review the template before compiling (skipped with --dont-answer-me)
+    if [ "$dont_answer_me" = "true" ]; then
+        echo -e "${V_MAIN}Skipping template review (--dont-answer-me).${V_RST}"
+    else
+        review_template "srcpkgs/$PKG_NAME/template" "$PKG_NAME"
+    fi
 
     echo -e "\n${V_MAIN}::${V_RST} Compiling ${V_PKG}$PKG_NAME${V_RST}..."
     
@@ -647,11 +671,16 @@ case "$1" in
     install|-i)
         shift
         RESTRICTED_FLAG="false"
+        DONT_ANSWER_FLAG="false"
         PKG_NAME_ARG=""
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 --restricted|-R)
                     RESTRICTED_FLAG="true"
+                    shift
+                    ;;
+                --dont-answer-me)
+                    DONT_ANSWER_FLAG="true"
                     shift
                     ;;
                 *)
@@ -665,7 +694,7 @@ case "$1" in
             show_help
             exit 1
         fi
-        install_package "$PKG_NAME_ARG" "$RESTRICTED_FLAG"
+        install_package "$PKG_NAME_ARG" "$RESTRICTED_FLAG" "$DONT_ANSWER_FLAG"
         ;;
     remove|-r)
         if [ -z "${2:-}" ]; then

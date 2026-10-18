@@ -42,11 +42,13 @@ curl -sSL https://github.com/javiercplus/vouru/raw/refs/heads/main/vouru | bash 
 | `vouru update` | Updates the repo, `xbps-src` and the system |
 | `vouru clean` | Deletes `void-packages` and cleans the cache with `xbps-remove -O` |
 | `vouru set-repo [path]` | Changes the repo location (saved in `~/.voururc`) |
-| `vouru install --restricted` | Install restricted packages (like spotify, discord, etc) |
+| `vouru install <term>` | Installs a package: choose between `[repo]` (xbps-install, binary) or `[source]` (build with xbps-src) |
+| `vouru install --restricted <pkg>` | Install restricted packages (like spotify, discord, etc) |
+| `vouru install --dont-answer-me <pkg>` | Unattended install: exact name match, no prompts, no template review — compiles and installs directly |
 
 **Aliases:** `-s` (search), `-i` (install), `-r` (remove), `-c` (clean), `-a` (add)
 
-When installing a package, vouru pauses and asks you to press any key to open the package's template before building it. While viewing the template, pressing `q` closes the view and returns to the prompt.
+When installing a package, vouru pauses and asks you to press any key to open the package's template before building it. While viewing the template, pressing `q` closes the view and returns to the prompt. Use `--dont-answer-me` to skip all prompts and build directly (requires the exact package name; flags can be combined: `vouru -i --dont-answer-me --restricted spotify`).
 
 ## Examples
 
@@ -56,6 +58,8 @@ vouru search firefox
 vouru source
 vouru install vlc
 vouru install --restricted discord
+vouru install --dont-answer-me firefox
+vouru -i --dont-answer-me --restricted spotify
 vouru remove cmuspp-void
 vouru update
 vouru clean
