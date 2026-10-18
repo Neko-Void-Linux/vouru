@@ -555,7 +555,7 @@ add_template() {
     TEMPLATE_FILES=()
     while IFS= read -r template_file; do
         TEMPLATE_FILES+=("$template_file")
-    done < <(find "$tmp_dir" -type f -name "template" -not -path "*/.git/*" | sort -u)
+    done < <(find -L "$tmp_dir" -type f -name "template" -not -path "*/.git/*" | sort -u)
 
     if [ ${#TEMPLATE_FILES[@]} -eq 0 ]; then
         echo -e "${V_ERR}Error: No 'template' file found in the repository.${V_RST}" >&2
